@@ -90,6 +90,11 @@
     });
 
     describe('chunked', function() {
+      it('returns the correct hash for an empty string', function() {
+        r.updateInit();
+        r.update('');
+        assert.strictEqual('da39a3ee5e6b4b0d3255bfef95601890afd80709', r.hexFinalize());
+      });
       it('returns the correct hash for one update', function() {
         r.updateInit();
         r.update('abc');
