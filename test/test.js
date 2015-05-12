@@ -90,10 +90,33 @@
     });
 
     describe('chunked', function() {
-      it('returns the correct hash for two small updates', function() {
+      it('returns the correct hash for one update', function() {
+        r.updateInit();
+        r.update('abc');
+        assert.strictEqual('a9993e364706816aba3e25717850c26c9cd0d89d', r.hexFinalize());
+      });
+      it('returns hex string from string with two updates', function() {
         r.updateInit();
         r.update('a');
         r.update('bc');
+        assert.strictEqual('a9993e364706816aba3e25717850c26c9cd0d89d', r.hexFinalize());
+      });
+      it('returns hex string from buffer with two updates', function() {
+        r.updateInit();
+        r.update(abcBuffer.slice(0, 1));
+        r.update(abcBuffer.slice(1));
+        assert.strictEqual('a9993e364706816aba3e25717850c26c9cd0d89d', r.hexFinalize());
+      });
+      it('returns hex string from array with two updates', function() {
+        r.updateInit();
+        r.update(abcArray.slice(0, 1));
+        r.update(abcArray.slice(1));
+        assert.strictEqual('a9993e364706816aba3e25717850c26c9cd0d89d', r.hexFinalize());
+      });
+      it('returns hex string from ArrayBuffer with two updates', function() {
+        r.updateInit();
+        r.update(abcArrayBuffer.slice(0, 1));
+        r.update(abcArrayBuffer.slice(1));
         assert.strictEqual('a9993e364706816aba3e25717850c26c9cd0d89d', r.hexFinalize());
       });
     });
