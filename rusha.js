@@ -1,4 +1,5 @@
-/*
+(function () {
+    if (/*
  * Rusha, a JavaScript implementation of the Secure Hash Algorithm, SHA-1,
  * as defined in FIPS PUB 180-1, tuned for high performance with large inputs.
  * (http://github.com/srijs/rusha)
@@ -26,298 +27,205 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
-(function () {
-    // If we'e running in Node.JS, export a module.
-    if (typeof module !== 'undefined') {
+        // If we'e running in Node.JS, export a module.
+        typeof module !== 'undefined') {
         module.exports = Rusha;
-    } else if (typeof window !== 'undefined') {
+    } else if (// If we're running in a DOM context, export
+        // the Rusha object to toplevel.
+        typeof window !== 'undefined') {
         window.Rusha = Rusha;
     }
-    // If we're running in a webworker, accept
-    // messages containing a jobid and a buffer
-    // or blob object, and return the hash result.
-    if (typeof FileReaderSync !== 'undefined') {
-        var reader = new FileReaderSync(), hasher = new Rusha(4 * 1024 * 1024);
-        self.onmessage = function onMessage(event) {
-            var hash, data = event.data.data;
-            try {
-                hash = hasher.digest(data);
-                self.postMessage({
-                    id: event.data.id,
-                    hash: hash
-                });
-            } catch (e) {
-                self.postMessage({
-                    id: event.data.id,
-                    error: e.name
-                });
-            }
-        };
-    }
-    var util = {
-            getDataType: function (data) {
-                if (typeof data === 'string') {
-                    return 'string';
-                }
-                if (data instanceof Array) {
-                    return 'array';
-                }
-                if (typeof global !== 'undefined' && global.Buffer && global.Buffer.isBuffer(data)) {
-                    return 'buffer';
-                }
-                if (data instanceof ArrayBuffer) {
-                    return 'arraybuffer';
-                }
-                if (data.buffer instanceof ArrayBuffer) {
-                    return 'view';
-                }
-                if (data instanceof Blob) {
-                    return 'blob';
-                }
-                throw new Error('Unsupported data type.');
-            }
-        };
-    // The Rusha object is a wrapper around the low-level RushaCore.
-    // It provides means of converting different inputs to the
-    // format accepted by RushaCore as well as other utility methods.
+    var // Calculate the length of buffer that the sha1 routine uses
+    // including the padding.
+    padlen = function (len) {
+        for (len += 9; len % 64 > 0; len += 1);
+        return len;
+    };
+    var padZeroes = function (bin, len) {
+        var h8 = new Uint8Array(bin.buffer);
+        for (var i = len % 4; i < 4; i++)
+            h8[len + i] = 0;
+        for (var i = (len >> 2) + 1; i < bin.length; i++)
+            bin[i] = 0;
+    };
+    var padData = function (bin, chunkLen, msgLen) {
+        bin[chunkLen >> 2] |= 128 << 24 - (chunkLen % 4 << 3);
+        bin[((chunkLen >> 2) + 2 & ~15) + 14] = msgLen >> 29;
+        bin[((chunkLen >> 2) + 2 & ~15) + 15] = msgLen << 3;
+    };
+    var // Convert an ArrayBuffer into its hexadecimal string representation.
+    hex = function (arrayBuffer) {
+        var i, x, hex_tab = '0123456789abcdef', res = '', binarray = new Uint8Array(arrayBuffer);
+        for (i = 0; i < binarray.length; i++) {
+            x = binarray[i];
+            res += hex_tab.charAt(x >> 4 & 15) + hex_tab.charAt(x >> 0 & 15);
+        }
+        return res;
+    };
+    var ceilHeapSize = function (v) {
+        // The asm.js spec says:
+        // The heap object's byteLength must be either
+        // 2^n for n in [12, 24) or 2^24 * n for n ≥ 1.
+        // Also, byteLengths smaller than 2^16 are deprecated.
+        var p;
+        if (// If v is smaller than 2^16, the smallest possible solution
+            // is 2^16.
+            v <= 65536)
+            return 65536;
+        if (// If v < 2^24, we round up to 2^n,
+            // otherwise we round up to 2^24 * n.
+            v < 16777216) {
+            for (p = 65536; p < v; p = p << 1);
+        } else {
+            for (p = 16777216; p < v; p += 16777216);
+        }
+        return p;
+    };
+    var getRawDigest = function (heap, padMaxChunkLen) {
+        var io = new Int32Array(heap, padMaxChunkLen + 320, 5);
+        var out = new Int32Array(5);
+        var arr = new DataView(out.buffer);
+        arr.setInt32(0, io[0], false);
+        arr.setInt32(4, io[1], false);
+        arr.setInt32(8, io[2], false);
+        arr.setInt32(12, io[3], false);
+        arr.setInt32(16, io[4], false);
+        return out;
+    };
     function Rusha(chunkSize) {
         'use strict';
         // Private object structure.
-        var self$2 = { fill: 0 };
-        // Calculate the length of buffer that the sha1 routine uses
-        // including the padding.
-        var padlen = function (len) {
-            for (len += 9; len % 64 > 0; len += 1);
-            return len;
-        };
-        var padZeroes = function (bin, len) {
-            for (var i = len >> 2; i < bin.length; i++)
-                bin[i] = 0;
-        };
-        var padData = function (bin, chunkLen, msgLen) {
-            bin[chunkLen >> 2] |= 128 << 24 - (chunkLen % 4 << 3);
-            bin[((chunkLen >> 2) + 2 & ~15) + 14] = msgLen >> 29;
-            bin[((chunkLen >> 2) + 2 & ~15) + 15] = msgLen << 3;
-        };
-        // Convert a binary string and write it to the heap.
-        // A binary string is expected to only contain char codes < 256.
-        var convStr = function (H8, H32, start, len, off) {
-            var str = this, i, om = off % 4, lm = len % 4, j = len - lm;
-            if (j > 0) {
-                switch (om) {
-                case 0:
-                    H8[off + 3 | 0] = str.charCodeAt(start);
-                case 1:
-                    H8[off + 2 | 0] = str.charCodeAt(start + 1);
-                case 2:
-                    H8[off + 1 | 0] = str.charCodeAt(start + 2);
-                case 3:
-                    H8[off | 0] = str.charCodeAt(start + 3);
-                }
-            }
-            for (i = om; i < j; i = i + 4 | 0) {
-                H32[off + i >> 2] = str.charCodeAt(start + i) << 24 | str.charCodeAt(start + i + 1) << 16 | str.charCodeAt(start + i + 2) << 8 | str.charCodeAt(start + i + 3);
-            }
-            switch (lm) {
-            case 3:
-                H8[off + j + 1 | 0] = str.charCodeAt(start + j + 2);
-            case 2:
-                H8[off + j + 2 | 0] = str.charCodeAt(start + j + 1);
-            case 1:
-                H8[off + j + 3 | 0] = str.charCodeAt(start + j);
-            }
-        };
-        // Convert a buffer or array and write it to the heap.
-        // The buffer or array is expected to only contain elements < 256.
-        var convBuf = function (H8, H32, start, len, off) {
-            var buf = this, i, om = off % 4, lm = len % 4, j = len - lm;
-            if (j > 0) {
-                switch (om) {
-                case 0:
-                    H8[off + 3 | 0] = buf[start];
-                case 1:
-                    H8[off + 2 | 0] = buf[start + 1];
-                case 2:
-                    H8[off + 1 | 0] = buf[start + 2];
-                case 3:
-                    H8[off | 0] = buf[start + 3];
-                }
-            }
-            for (i = 4 - om; i < j; i = i += 4 | 0) {
-                H32[off + i >> 2] = buf[start + i] << 24 | buf[start + i + 1] << 16 | buf[start + i + 2] << 8 | buf[start + i + 3];
-            }
-            switch (lm) {
-            case 3:
-                H8[off + j + 1 | 0] = buf[start + j + 2];
-            case 2:
-                H8[off + j + 2 | 0] = buf[start + j + 1];
-            case 1:
-                H8[off + j + 3 | 0] = buf[start + j];
-            }
-        };
-        var convBlob = function (H8, H32, start, len, off) {
-            var blob = this, i, om = off % 4, lm = len % 4, j = len - lm;
-            var buf = new Uint8Array(reader.readAsArrayBuffer(blob.slice(start, start + len)));
-            if (j > 0) {
-                switch (om) {
-                case 0:
-                    H8[off + 3 | 0] = buf[0];
-                case 1:
-                    H8[off + 2 | 0] = buf[1];
-                case 2:
-                    H8[off + 1 | 0] = buf[2];
-                case 3:
-                    H8[off | 0] = buf[3];
-                }
-            }
-            for (i = 4 - om; i < j; i = i += 4 | 0) {
-                H32[off + i >> 2] = buf[i] << 24 | buf[i + 1] << 16 | buf[i + 2] << 8 | buf[i + 3];
-            }
-            switch (lm) {
-            case 3:
-                H8[off + j + 1 | 0] = buf[j + 2];
-            case 2:
-                H8[off + j + 2 | 0] = buf[j + 1];
-            case 1:
-                H8[off + j + 3 | 0] = buf[j];
-            }
-        };
-        var convFn = function (data) {
-            switch (util.getDataType(data)) {
-            case 'string':
-                return convStr.bind(data);
-            case 'array':
-                return convBuf.bind(data);
-            case 'buffer':
-                return convBuf.bind(data);
-            case 'arraybuffer':
-                return convBuf.bind(new Uint8Array(data));
-            case 'view':
-                return convBuf.bind(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
-            case 'blob':
-                return convBlob.bind(data);
-            }
-        };
-        var slice = function (data, offset) {
-            switch (util.getDataType(data)) {
-            case 'string':
-                return data.slice(offset);
-            case 'array':
-                return data.slice(offset);
-            case 'buffer':
-                return data.slice(offset);
-            case 'arraybuffer':
-                return data.slice(offset);
-            case 'view':
-                return data.buffer.slice(offset);
-            }
-        };
-        // Convert an ArrayBuffer into its hexadecimal string representation.
-        var hex = function (arrayBuffer) {
-            var i, x, hex_tab = '0123456789abcdef', res = [], binarray = new Uint8Array(arrayBuffer);
-            for (i = 0; i < binarray.length; i++) {
-                x = binarray[i];
-                res[i] = hex_tab.charAt(x >> 4 & 15) + hex_tab.charAt(x >> 0 & 15);
-            }
-            return res.join('');
-        };
-        var ceilHeapSize = function (v) {
-            // The asm.js spec says:
-            // The heap object's byteLength must be either
-            // 2^n for n in [12, 24) or 2^24 * n for n ≥ 1.
-            // Also, byteLengths smaller than 2^16 are deprecated.
-            var p;
-            // If v is smaller than 2^16, the smallest possible solution
-            // is 2^16.
-            if (v <= 65536)
-                return 65536;
-            // If v < 2^24, we round up to 2^n,
-            // otherwise we round up to 2^24 * n.
-            if (v < 16777216) {
-                for (p = 1; p < v; p = p << 1);
-            } else {
-                for (p = 16777216; p < v; p += 16777216);
-            }
-            return p;
-        };
-        // Initialize the internal data structures to a new capacity.
-        var init = function (size) {
-            if (size % 64 > 0) {
-                throw new Error('Chunk size must be a multiple of 128 bit');
-            }
-            self$2.maxChunkLen = size;
-            self$2.padMaxChunkLen = padlen(size);
-            // The size of the heap is the sum of:
-            // 1. The padded input message size
-            // 2. The extended space the algorithm needs (320 byte)
-            // 3. The 160 bit state the algoritm uses
-            self$2.heap = new ArrayBuffer(ceilHeapSize(self$2.padMaxChunkLen + 320 + 20));
-            self$2.h32 = new Int32Array(self$2.heap);
-            self$2.h8 = new Int8Array(self$2.heap);
-            self$2.core = new Rusha._core({
-                Int32Array: Int32Array,
-                DataView: DataView
-            }, {}, self$2.heap);
-            self$2.buffer = null;
-        };
-        // Iinitializethe datastructures according
-        // to a chunk siyze.
-        init(chunkSize || 64 * 1024);
-        var initState = function (heap, padMsgLen) {
-            var io = new Int32Array(heap, padMsgLen + 320, 5);
+        var self = {};
+        chunkSize = chunkSize || 64 * 1024;
+        if (chunkSize % 64 > 0) {
+            throw new Error('Chunk size must be a multiple of 128 bit');
+        }
+        self.offset = 0;
+        self.maxChunkLen = chunkSize;
+        self.padMaxChunkLen = padlen(chunkSize);
+        // The size of the heap is the sum of:
+        // 1. The padded input message size
+        // 2. The extended space the algorithm needs (320 byte)
+        // 3. The 160 bit state the algoritm uses
+        self.heap = new ArrayBuffer(ceilHeapSize(self.padMaxChunkLen + 320 + 20));
+        self.h32 = new Int32Array(self.heap);
+        self.h8 = new Int8Array(self.heap);
+        self.core = new Rusha._core({ Int32Array: Int32Array }, {}, self.heap);
+        initState();
+        function initState() {
+            self.offset = 0;
+            var io = new Int32Array(self.heap, self.padMaxChunkLen + 320, 5);
             io[0] = 1732584193;
             io[1] = -271733879;
             io[2] = -1732584194;
             io[3] = 271733878;
             io[4] = -1009589776;
-        };
-        var padChunk = function (chunkLen, msgLen) {
+        }
+        function convBuf(buf, start, len, offset) {
+            var om = offset % 4;
+            var lm = (len + om) % 4;
+            var j = len - lm;
+            switch (om) {
+            case 0:
+                self.h8[offset] = buf[start + 3];
+            case 1:
+                self.h8[offset + 1 - (om << 1) | 0] = buf[start + 2];
+            case 2:
+                self.h8[offset + 2 - (om << 1) | 0] = buf[start + 1];
+            case 3:
+                self.h8[offset + 3 - (om << 1) | 0] = buf[start];
+            }
+            if (len < lm + om) {
+                return;
+            }
+            for (var i = 4 - om; i < j; i = i + 4 | 0) {
+                self.h32[offset + i >> 2 | 0] = buf[start + i] << 24 | buf[start + i + 1] << 16 | buf[start + i + 2] << 8 | buf[start + i + 3];
+            }
+            switch (lm) {
+            case 3:
+                self.h8[offset + j + 1 | 0] = buf[start + j + 2];
+            case 2:
+                self.h8[offset + j + 2 | 0] = buf[start + j + 1];
+            case 1:
+                self.h8[offset + j + 3 | 0] = buf[start + j];
+            }
+        }
+        ;
+        var // Calculate the hash digest as an array of 5 32bit integers.
+        rawDigest = this.rawDigest = function (msg) {
+            var msgLen = msg.byteLength;
+            initState();
+            msg = new Uint8Array(msg);
+            var chunkLen = self.maxChunkLen;
+            var chunkOffset = 0;
+            for (; chunkOffset + chunkLen < msgLen; chunkOffset += chunkLen) {
+                convBuf(msg, chunkOffset, chunkLen, 0);
+                self.core.hash(chunkLen, self.padMaxChunkLen);
+            }
+            chunkLen = msgLen - chunkOffset;
             var padChunkLen = padlen(chunkLen);
-            var view = new Int32Array(self$2.heap, 0, padChunkLen >> 2);
+            var view = new Int32Array(self.heap, 0, padChunkLen >> 2);
+            convBuf(msg, chunkOffset, chunkLen, 0);
             padZeroes(view, chunkLen);
             padData(view, chunkLen, msgLen);
-            return padChunkLen;
+            self.core.hash(padChunkLen, self.padMaxChunkLen);
+            return getRawDigest(self.heap, self.padMaxChunkLen);
         };
-        // Write data to the heap.
-        var write = function (data, chunkOffset, chunkLen) {
-            convFn(data)(self$2.h8, self$2.h32, chunkOffset, chunkLen, 0);
-        };
-        // Initialize and call the RushaCore,
-        // assuming an input buffer of length len * 4.
-        var coreCall = function (data, chunkOffset, chunkLen, msgLen, finalize) {
-            var padChunkLen = chunkLen;
-            if (finalize) {
-                padChunkLen = padChunk(chunkLen, msgLen);
-            }
-            write(data, chunkOffset, chunkLen);
-            self$2.core.hash(padChunkLen, self$2.padMaxChunkLen);
-        };
-        var getRawDigest = function (heap, padMaxChunkLen) {
-            var io = new Int32Array(heap, padMaxChunkLen + 320, 5);
-            var out = new Int32Array(5);
-            var arr = new DataView(out.buffer);
-            arr.setInt32(0, io[0], false);
-            arr.setInt32(4, io[1], false);
-            arr.setInt32(8, io[2], false);
-            arr.setInt32(12, io[3], false);
-            arr.setInt32(16, io[4], false);
-            return out;
-        };
-        // Calculate the hash digest as an array of 5 32bit integers.
-        var rawDigest = this.rawDigest = function (str) {
-                var msgLen = str.byteLength || str.length || str.size || 0;
-                initState(self$2.heap, self$2.padMaxChunkLen);
-                var chunkOffset = 0, chunkLen = self$2.maxChunkLen, last;
-                for (chunkOffset = 0; msgLen > chunkOffset + chunkLen; chunkOffset += chunkLen) {
-                    coreCall(str, chunkOffset, chunkLen, msgLen, false);
-                }
-                coreCall(str, chunkOffset, msgLen - chunkOffset, msgLen, true);
-                return getRawDigest(self$2.heap, self$2.padMaxChunkLen);
-            };
         // The digest and digestFrom* interface returns the hash digest
         // as a hex string.
-        this.digest = this.digestFromString = this.digestFromBuffer = this.digestFromArrayBuffer = function (str) {
-            return hex(rawDigest(str).buffer);
+        this.digest = function (msg) {
+            return hex(rawDigest(msg).buffer);
+        };
+        var reset = this.reset = function () {
+            initState();
+        };
+        this.update = function (chunk) {
+            var chunkOffset = 0;
+            var chunkLen = chunk.byteLength;
+            var turnOffset = self.offset % self.maxChunkLen;
+            self.offset += chunkLen;
+            while (chunkOffset < chunkLen) {
+                var inputLen = Math.min(chunkLen - chunkOffset, self.maxChunkLen - turnOffset);
+                convBuf(chunk, chunkOffset, inputLen, turnOffset);
+                turnOffset += inputLen;
+                chunkOffset += inputLen;
+                if (turnOffset === self.maxChunkLen) {
+                    self.core.hash(self.maxChunkLen, self.padMaxChunkLen);
+                    turnOffset = 0;
+                }
+            }
+        };
+        var rawFinallize = this.rawFinallize = function () {
+            var msgLen = self.offset;
+            var chunkLen = msgLen % self.maxChunkLen;
+            var padChunkLen = padlen(chunkLen);
+            var view = new Int32Array(self.heap, 0, padChunkLen >> 2);
+            padZeroes(view, chunkLen);
+            padData(view, chunkLen, msgLen);
+            self.core.hash(padChunkLen, self.padMaxChunkLen);
+            var result = getRawDigest(self.heap, self.padMaxChunkLen);
+            initState();
+            return result;
+        };
+        this.finalize = function () {
+            return hex(rawFinallize().buffer);
+        };
+        this.getState = function () {
+            return {
+                offset: self.offset,
+                maxChunkLen: self.maxChunkLen,
+                padMaxChunkLen: self.padMaxChunkLen,
+                heap: self.heap
+            };
+        };
+        this.setState = function (state) {
+            self.offset = state.offset;
+            self.maxChunkLen = state.maxChunkLen;
+            self.padMaxChunkLen = state.padMaxChunkLen;
+            self.heap = state.heap;
+            self.h32 = new Int32Array(self.heap);
+            self.h8 = new Int8Array(self.heap);
+            self.core = new Rusha._core({ Int32Array: Int32Array }, {}, self.heap);
         };
     }
     ;
