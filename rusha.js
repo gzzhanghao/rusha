@@ -195,7 +195,7 @@
                 }
             }
         };
-        var rawFinallize = this.rawFinallize = function () {
+        var rawFinalize = this.rawFinalize = function () {
             var msgLen = self.offset;
             var chunkLen = msgLen % self.maxChunkLen;
             var padChunkLen = padlen(chunkLen);
@@ -208,7 +208,7 @@
             return result;
         };
         this.finalize = function () {
-            return hex(rawFinallize().buffer);
+            return hex(rawFinalize().buffer);
         };
         this.getState = function () {
             return {
