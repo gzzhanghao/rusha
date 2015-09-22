@@ -29,23 +29,43 @@ If you still want to do this, anyhow, just `require()` the `rusha.js` file, foll
 
 Rusha is available on [bower](http://twitter.github.com/bower/) via `bower install rusha`.
 
-It is highly recommended to run CPU-intensive tasks in a [Web Worker](http://developer.mozilla.org/en-US/docs/DOM/Using_web_workers). To do so, just start a worker with `var worker = new Worker('rusha.js')` and start sending it jobs. Follow the instructions on _Using the Rusha Worker_.
+It is highly recommended to run CPU-intensive tasks in a [Web Worker](http://developer.mozilla.org/en-US/docs/DOM/Using_web_workers).
 
-If you can't, for any reason, use Web Workers, include the `rusha.js` file in a `<script>` tag and follow the instructions on _Using the Rusha Object_.
-
-## Using the Rusha Object
+## Usage
 
 Your instantiate a new Rusha object by doing `var r = new Rusha(optionalSizeHint)`. When created, it provides the following methods:
 
-- `Rusha#digest(d)`: Create a hex digest from data of the three kinds mentioned below, or throw and error if the type is unsupported.
-- `Rusha#digestFromString(s)`: Create a hex digest from a binary `String`. A binary string is expected to only contain characters whose charCode < 256.
-- `Rusha#digestFromBuffer(b)`: Create a hex digest from a `Buffer` or `Array`. Both are expected to only contain elements < 256.
-- `Rusha#digestFromArrayBuffer(a)`: Create a hex digest from an `ArrayBuffer` object.
-- `Rusha#rawDigest(d)`: Behaves just like #digest(d), except that it returns the digest as an Int32Array of size 5.
+### Rusha#digest(d)
 
-## Using the Rusha Worker
+Create a hex digest from an ArrayBuffer.
 
-You can send your instance of the web worker messages in the format `{id: jobid, data: dataobject}`. The worker then sends back a message in the format `{id: jobid, hash: hash}`, were jobid is the id of the job previously received and hash is the hash of the data-object you passed, be it a `Blob`, `Array`, `Buffer`, `ArrayBuffer` or `String`.
+### Rusha#rawDigest(d)
+
+Behaves just like #digest(d), except that it returns the digest as an Int32Array of size 5.
+
+### Rusha#reset()
+
+Resets the internal computaion state.
+
+### Rusha#update(chunk)
+
+Appends an ArrayBuffer or an Uint8Array.
+
+### Rusha#finalize()
+
+Finish the computation of the md5, returning the hex result.
+
+### Rusha#rawFinalize()
+
+Behaves just like #finallize(), except that it returns the result as an Int32Array.
+
+### Rusha#getState()
+
+Returns the internal computation state so you can resume it later with #setState. Useful in incremental hashing.
+
+### Rusha#setState(state)
+
+Sets the internal computation state. See: #getState().
 
 ## Development
 
