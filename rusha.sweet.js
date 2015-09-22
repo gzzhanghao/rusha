@@ -40,6 +40,10 @@
     window.Rusha = Rusha;
   }
 
+  else if (typeof self !== 'undefined') {
+    self.Rusha = Rusha;
+  }
+
   // Calculate the length of buffer that the sha1 routine uses
   // including the padding.
   var padlen = function (len) {

@@ -34,6 +34,8 @@
         // the Rusha object to toplevel.
         typeof window !== 'undefined') {
         window.Rusha = Rusha;
+    } else if (typeof self !== 'undefined') {
+        self.Rusha = Rusha;
     }
     var // Calculate the length of buffer that the sha1 routine uses
     // including the padding.
@@ -95,26 +97,26 @@
     function Rusha(chunkSize) {
         'use strict';
         // Private object structure.
-        var self = {};
+        var self$2 = {};
         chunkSize = chunkSize || 64 * 1024;
         if (chunkSize % 64 > 0) {
             throw new Error('Chunk size must be a multiple of 128 bit');
         }
-        self.offset = 0;
-        self.maxChunkLen = chunkSize;
-        self.padMaxChunkLen = padlen(chunkSize);
+        self$2.offset = 0;
+        self$2.maxChunkLen = chunkSize;
+        self$2.padMaxChunkLen = padlen(chunkSize);
         // The size of the heap is the sum of:
         // 1. The padded input message size
         // 2. The extended space the algorithm needs (320 byte)
         // 3. The 160 bit state the algoritm uses
-        self.heap = new ArrayBuffer(ceilHeapSize(self.padMaxChunkLen + 320 + 20));
-        self.h32 = new Int32Array(self.heap);
-        self.h8 = new Int8Array(self.heap);
-        self.core = new Rusha._core({ Int32Array: Int32Array }, {}, self.heap);
+        self$2.heap = new ArrayBuffer(ceilHeapSize(self$2.padMaxChunkLen + 320 + 20));
+        self$2.h32 = new Int32Array(self$2.heap);
+        self$2.h8 = new Int8Array(self$2.heap);
+        self$2.core = new Rusha._core({ Int32Array: Int32Array }, {}, self$2.heap);
         initState();
         function initState() {
-            self.offset = 0;
-            var io = new Int32Array(self.heap, self.padMaxChunkLen + 320, 5);
+            self$2.offset = 0;
+            var io = new Int32Array(self$2.heap, self$2.padMaxChunkLen + 320, 5);
             io[0] = 1732584193;
             io[1] = -271733879;
             io[2] = -1732584194;
@@ -127,27 +129,27 @@
             var j = len - lm;
             switch (om) {
             case 0:
-                self.h8[offset] = buf[start + 3];
+                self$2.h8[offset] = buf[start + 3];
             case 1:
-                self.h8[offset + 1 - (om << 1) | 0] = buf[start + 2];
+                self$2.h8[offset + 1 - (om << 1) | 0] = buf[start + 2];
             case 2:
-                self.h8[offset + 2 - (om << 1) | 0] = buf[start + 1];
+                self$2.h8[offset + 2 - (om << 1) | 0] = buf[start + 1];
             case 3:
-                self.h8[offset + 3 - (om << 1) | 0] = buf[start];
+                self$2.h8[offset + 3 - (om << 1) | 0] = buf[start];
             }
             if (len < lm + om) {
                 return;
             }
             for (var i = 4 - om; i < j; i = i + 4 | 0) {
-                self.h32[offset + i >> 2 | 0] = buf[start + i] << 24 | buf[start + i + 1] << 16 | buf[start + i + 2] << 8 | buf[start + i + 3];
+                self$2.h32[offset + i >> 2 | 0] = buf[start + i] << 24 | buf[start + i + 1] << 16 | buf[start + i + 2] << 8 | buf[start + i + 3];
             }
             switch (lm) {
             case 3:
-                self.h8[offset + j + 1 | 0] = buf[start + j + 2];
+                self$2.h8[offset + j + 1 | 0] = buf[start + j + 2];
             case 2:
-                self.h8[offset + j + 2 | 0] = buf[start + j + 1];
+                self$2.h8[offset + j + 2 | 0] = buf[start + j + 1];
             case 1:
-                self.h8[offset + j + 3 | 0] = buf[start + j];
+                self$2.h8[offset + j + 3 | 0] = buf[start + j];
             }
         }
         ;
@@ -156,20 +158,20 @@
             var msgLen = msg.byteLength;
             initState();
             msg = new Uint8Array(msg);
-            var chunkLen = self.maxChunkLen;
+            var chunkLen = self$2.maxChunkLen;
             var chunkOffset = 0;
             for (; chunkOffset + chunkLen < msgLen; chunkOffset += chunkLen) {
                 convBuf(msg, chunkOffset, chunkLen, 0);
-                self.core.hash(chunkLen, self.padMaxChunkLen);
+                self$2.core.hash(chunkLen, self$2.padMaxChunkLen);
             }
             chunkLen = msgLen - chunkOffset;
             var padChunkLen = padlen(chunkLen);
-            var view = new Int32Array(self.heap, 0, padChunkLen >> 2);
+            var view = new Int32Array(self$2.heap, 0, padChunkLen >> 2);
             convBuf(msg, chunkOffset, chunkLen, 0);
             padZeroes(view, chunkLen);
             padData(view, chunkLen, msgLen);
-            self.core.hash(padChunkLen, self.padMaxChunkLen);
-            return getRawDigest(self.heap, self.padMaxChunkLen);
+            self$2.core.hash(padChunkLen, self$2.padMaxChunkLen);
+            return getRawDigest(self$2.heap, self$2.padMaxChunkLen);
         };
         // The digest and digestFrom* interface returns the hash digest
         // as a hex string.
@@ -182,28 +184,28 @@
         this.update = function (chunk) {
             var chunkOffset = 0;
             var chunkLen = chunk.byteLength;
-            var turnOffset = self.offset % self.maxChunkLen;
-            self.offset += chunkLen;
+            var turnOffset = self$2.offset % self$2.maxChunkLen;
+            self$2.offset += chunkLen;
             while (chunkOffset < chunkLen) {
-                var inputLen = Math.min(chunkLen - chunkOffset, self.maxChunkLen - turnOffset);
+                var inputLen = Math.min(chunkLen - chunkOffset, self$2.maxChunkLen - turnOffset);
                 convBuf(chunk, chunkOffset, inputLen, turnOffset);
                 turnOffset += inputLen;
                 chunkOffset += inputLen;
-                if (turnOffset === self.maxChunkLen) {
-                    self.core.hash(self.maxChunkLen, self.padMaxChunkLen);
+                if (turnOffset === self$2.maxChunkLen) {
+                    self$2.core.hash(self$2.maxChunkLen, self$2.padMaxChunkLen);
                     turnOffset = 0;
                 }
             }
         };
         var rawFinalize = this.rawFinalize = function () {
-            var msgLen = self.offset;
-            var chunkLen = msgLen % self.maxChunkLen;
+            var msgLen = self$2.offset;
+            var chunkLen = msgLen % self$2.maxChunkLen;
             var padChunkLen = padlen(chunkLen);
-            var view = new Int32Array(self.heap, 0, padChunkLen >> 2);
+            var view = new Int32Array(self$2.heap, 0, padChunkLen >> 2);
             padZeroes(view, chunkLen);
             padData(view, chunkLen, msgLen);
-            self.core.hash(padChunkLen, self.padMaxChunkLen);
-            var result = getRawDigest(self.heap, self.padMaxChunkLen);
+            self$2.core.hash(padChunkLen, self$2.padMaxChunkLen);
+            var result = getRawDigest(self$2.heap, self$2.padMaxChunkLen);
             initState();
             return result;
         };
@@ -212,20 +214,20 @@
         };
         this.getState = function () {
             return {
-                offset: self.offset,
-                maxChunkLen: self.maxChunkLen,
-                padMaxChunkLen: self.padMaxChunkLen,
-                heap: self.heap
+                offset: self$2.offset,
+                maxChunkLen: self$2.maxChunkLen,
+                padMaxChunkLen: self$2.padMaxChunkLen,
+                heap: self$2.heap
             };
         };
         this.setState = function (state) {
-            self.offset = state.offset;
-            self.maxChunkLen = state.maxChunkLen;
-            self.padMaxChunkLen = state.padMaxChunkLen;
-            self.heap = state.heap;
-            self.h32 = new Int32Array(self.heap);
-            self.h8 = new Int8Array(self.heap);
-            self.core = new Rusha._core({ Int32Array: Int32Array }, {}, self.heap);
+            self$2.offset = state.offset;
+            self$2.maxChunkLen = state.maxChunkLen;
+            self$2.padMaxChunkLen = state.padMaxChunkLen;
+            self$2.heap = state.heap;
+            self$2.h32 = new Int32Array(self$2.heap);
+            self$2.h8 = new Int8Array(self$2.heap);
+            self$2.core = new Rusha._core({ Int32Array: Int32Array }, {}, self$2.heap);
         };
     }
     ;
