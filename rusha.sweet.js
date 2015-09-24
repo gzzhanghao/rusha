@@ -211,7 +211,7 @@
       initState();
     };
 
-    this.update = function (chunk) {
+    this.append = function (chunk) {
       var chunkOffset = 0;
       var chunkLen = chunk.byteLength;
       var turnOffset = self.offset % self.maxChunkLen;
@@ -232,7 +232,7 @@
       }
     };
 
-    var rawFinalize = this.rawFinalize = function () {
+    var rawEnd = this.rawEnd = function () {
       var msgLen = self.offset;
       var chunkLen = msgLen % self.maxChunkLen;
       var padChunkLen = padlen(chunkLen);
@@ -248,8 +248,8 @@
       return result;
     };
 
-    this.finalize = function () {
-      return hex(rawFinalize().buffer);
+    this.end = function () {
+      return hex(rawEnd().buffer);
     };
 
     this.getState = function () {
@@ -257,7 +257,7 @@
         offset: self.offset,
         maxChunkLen: self.maxChunkLen,
         padMaxChunkLen: self.padMaxChunkLen,
-        heap: self.heap
+        heap: self.heap.slice()
       };
     };
 
@@ -265,11 +265,8 @@
       self.offset = state.offset;
       self.maxChunkLen = state.maxChunkLen;
       self.padMaxChunkLen = state.padMaxChunkLen;
-      
-      self.heap  = state.heap;
-      self.h32   = new Int32Array(self.heap);
-      self.h8    = new Int8Array(self.heap);
-      self.core  = new Rusha._core({Int32Array: Int32Array}, {}, self.heap);
+
+      self.h32.set(new Int32Array(state.heap));
     };
 
   };
