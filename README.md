@@ -47,17 +47,17 @@ Behaves just like #digest(d), except that it returns the digest as an Int32Array
 
 Resets the internal computaion state.
 
-### Rusha#update(chunk)
+### Rusha#append(chunk)
 
 Appends an ArrayBuffer or an Uint8Array.
 
-### Rusha#finalize()
+### Rusha#end()
 
 Finish the computation of the md5, returning the hex result.
 
-### Rusha#rawFinalize()
+### Rusha#rawEnd()
 
-Behaves just like #finallize(), except that it returns the result as an Int32Array.
+Behaves just like #end(), except that it returns the result as an Int32Array.
 
 ### Rusha#getState()
 
