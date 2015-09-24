@@ -53,7 +53,18 @@
 
   var padZeroes = function (bin, len) {
     var h8 = new Uint8Array(bin.buffer);
-    for (var i = len % 4; i < 4; i++) h8[len + i] = 0;
+    var om = len % 4;
+    var align = len - om;
+    switch (om) {
+      case 0:
+        h8[align + 3] = 0;
+      case 1:
+        h8[align + 2] = 0;
+      case 2:
+        h8[align + 1] = 0;
+      case 3:
+        h8[align + 0] = 0;
+    }
     for (var i = (len >> 2) + 1; i < bin.length; i++) bin[i] = 0;
   };
 
