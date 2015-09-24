@@ -216,6 +216,8 @@
       var chunkLen = chunk.byteLength;
       var turnOffset = self.offset % self.maxChunkLen;
 
+      chunk = new Uint8Array(chunk);
+
       self.offset += chunkLen;
 
       while (chunkOffset < chunkLen) {
