@@ -318,7 +318,6 @@
   // implementation that has a few functions hand-inlined and a few loops
   // hand-unrolled.
   Rusha._core = function RushaCore (stdlib, foreign, heap) {
-    "use asm";
 
     var H = new stdlib.Int32Array(heap);
 
