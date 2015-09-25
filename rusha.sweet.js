@@ -220,6 +220,7 @@
 
     var reset = this.reset = function () {
       initState();
+      return this;
     };
 
     this.append = function (chunk) {
@@ -241,6 +242,7 @@
           turnOffset = 0;
         }
       }
+      return this;
     };
 
     var rawEnd = this.rawEnd = function () {
@@ -276,8 +278,8 @@
       self.offset = state.offset;
       self.maxChunkLen = state.maxChunkLen;
       self.padMaxChunkLen = state.padMaxChunkLen;
-
       self.h32.set(new Int32Array(state.heap));
+      return this;
     };
 
   };

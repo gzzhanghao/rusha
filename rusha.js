@@ -190,6 +190,7 @@
         };
         var reset = this.reset = function () {
             initState();
+            return this;
         };
         this.append = function (chunk) {
             var chunkOffset = 0;
@@ -207,6 +208,7 @@
                     turnOffset = 0;
                 }
             }
+            return this;
         };
         var rawEnd = this.rawEnd = function () {
             var msgLen = self$2.offset;
@@ -236,6 +238,7 @@
             self$2.maxChunkLen = state.maxChunkLen;
             self$2.padMaxChunkLen = state.padMaxChunkLen;
             self$2.h32.set(new Int32Array(state.heap));
+            return this;
         };
     }
     ;
